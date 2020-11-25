@@ -1,0 +1,28 @@
+syntax = "proto3";
+package replication;
+service Replicator {
+    rpc update(UpdateRequest) returns (UpdateReply);
+}
+
+service Querier {
+    rpc get(QueryRequest) returns (QueryReply);
+}
+message UpdateRequest {
+    string id = 1;
+    string key = 2;
+    string value = 3;
+}
+message UpdateReply {
+    string id = 1;
+}
+
+message QueryRequest {
+    string id = 1;
+    string key = 2;
+}
+
+message QueryReply {
+    string id = 1;
+    string key = 2;
+    string value = 3;
+}
