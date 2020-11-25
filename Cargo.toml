@@ -1,0 +1,22 @@
+[package]
+name = "kefka"
+version = "0.1.0"
+authors = ["dermot"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[[bin]] # Bin to run the HelloWorld gRPC server
+name = "kefka-server"
+path = "src/server.rs"
+
+
+
+[dependencies]
+sled="0.34.6"
+uuid = { version = "0.8", features = ["serde", "v4"] }
+tonic = "0.3"
+prost = "0.6"
+tokio = { version = "0.2", features = ["macros"] }
+
+[build-dependencies]
+tonic-build = "0.3"
