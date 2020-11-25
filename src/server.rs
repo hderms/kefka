@@ -1,18 +1,16 @@
-
 use uuid::Uuid;
 
+use replication::querier_server::{Querier, QuerierServer};
+use replication::replicator_server::{Replicator, ReplicatorServer};
+use replication::{QueryReply, QueryRequest};
+use replication::{UpdateReply, UpdateRequest};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use tonic::{transport::Server, Request, Response, Status};
-use replication::replicator_server::{Replicator,ReplicatorServer};
-use replication::{UpdateRequest, UpdateReply};
-use replication::querier_server::{Querier,QuerierServer};
-use replication::{QueryRequest, QueryReply};
-use sled::IVec;
-use std::borrow::Borrow;
+
 use sled::Db;
+use std::borrow::Borrow;
 mod node;
 pub use node::Node;
-
 
 pub mod replication {
     tonic::include_proto!("replication");
@@ -29,83 +27,60 @@ impl Replicator for Node {
         let key = message.key;
         let value = message.value;
         if (key.is_empty() || value.is_empty()) {
-            return Result::Err( Status::invalid_argument("empty value provided for key or value"));
-        } 
-          let result = self.db.insert(key.as_bytes(), value.as_bytes());
+            return Result::Err(Status::invalid_argument(
+                "empty value provided for key or value",
+            ));
+        }
+        let result = self.insert(key.as_bytes(), value.as_bytes());
 
-
-          match result {
-              Ok(_) => {
-                let reply = replication::UpdateReply {
-                    id: id
-                };
+        match result {
+            Ok(_) => {
+                let reply = replication::UpdateReply { id: id };
                 Ok(Response::new(reply))
-
-              },
-              Err(e) => {
-                  Result::Err(Status::internal(e.to_string()))
-              }
-          }
-
-        
-
+            }
+            Err(e) => Result::Err(Status::internal(e.to_string())),
+        }
     }
 }
-
 #[tonic::async_trait]
 impl Querier for Node {
-    async fn get(
-        &self,
-        request: Request<QueryRequest>,
-    ) -> Result<Response<QueryReply>, Status> {
+    async fn get(&self, request: Request<QueryRequest>) -> Result<Response<QueryReply>, Status> {
         println!("Got a request from {:?}", request.remote_addr());
         let message = request.into_inner();
         let id = message.id;
         let key = message.key;
-        if (key.is_empty() ) {
-            return Result::Err( Status::invalid_argument("empty value provided for key "));
-        } 
-          let result = self.db.get(key.as_bytes());
+        if (key.is_empty()) {
+            return Result::Err(Status::invalid_argument("empty value provided for key "));
+        }
+        let result = self.query(key.as_bytes());
 
-
-          match result {
-              Ok(Some(value)) => {
-                let valueBytes: &[u8]= value.borrow();
+        return match result {
+            Ok(Some(value)) => {
+                let valueBytes: &[u8] = value.borrow();
                 let valueString = String::from_utf8(valueBytes.to_vec());
                 match valueString {
-                    Ok(s) => {
-
-                        let reply = replication::QueryReply {
-                            id: id,
-                            key: key,
-                            value: s
-                        };
-                        Ok(Response::new(reply))
-                    },
-                    Err(e) => {
-                        println!("could not get data from DB");
-                        println!("{}", e.to_string());
-                        Result::Err(Status::internal("Could not convert data from DB to utf8 string"))
-                    }
+                    Ok(s) => reply_success(id, key, s),
+                    Err(e) => Result::Err(Status::internal(
+                        "Could not convert data from DB to utf8 string",
+                    )),
                 }
+            }
 
-              },
-
-              Ok(None) => {
-                        println!("key not found");
-                  Result::Err(Status::not_found("key not found"))
-              }
-              Err(e) => {
-                        println!("total error");
-                        println!("{}", e.to_string());
-                  Result::Err(Status::internal(e.to_string()))
-              }
-          }
-
-        
-
+            Ok(None) => Result::Err(Status::not_found("key not found")),
+            Err(e) => Result::Err(Status::internal(e.to_string())),
+        };
     }
 }
+
+fn reply_success(id: String, key: String, value: String) -> Result<Response<QueryReply>, Status> {
+    let reply = replication::QueryReply {
+        id: id,
+        key: key,
+        value: value,
+    };
+    return Ok(Response::new(reply));
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr = "127.0.0.1:50051".parse().unwrap();
