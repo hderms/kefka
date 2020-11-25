@@ -1,13 +1,9 @@
-use uuid::Uuid;
-
 use replication::querier_server::{Querier, QuerierServer};
 use replication::replicator_server::{Replicator, ReplicatorServer};
 use replication::{QueryReply, QueryRequest};
 use replication::{UpdateReply, UpdateRequest};
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use tonic::{transport::Server, Request, Response, Status};
 
-use sled::Db;
 use std::borrow::Borrow;
 mod node;
 pub use node::Node;
@@ -56,11 +52,11 @@ impl Querier for Node {
 
         return match result {
             Ok(Some(value)) => {
-                let valueBytes: &[u8] = value.borrow();
-                let valueString = String::from_utf8(valueBytes.to_vec());
-                match valueString {
+                let value_bytes: &[u8] = value.borrow();
+                let value_string = String::from_utf8(value_bytes.to_vec());
+                match value_string {
                     Ok(s) => reply_success(id, key, s),
-                    Err(e) => Result::Err(Status::internal(
+                    Err(_) => Result::Err(Status::internal(
                         "Could not convert data from DB to utf8 string",
                     )),
                 }
