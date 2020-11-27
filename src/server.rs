@@ -2,7 +2,7 @@ extern crate pretty_env_logger;
 use replication::querier_server::{Querier, QuerierServer};
 use replication::replicator_server::{Replicator, ReplicatorServer};
 use replication::{QueryReply, QueryRequest};
-use replication::{UpdateReply, UpdateRequest};
+use replication::{UpdateAck, UpdateReply, UpdateRequest};
 use tonic::{transport::Server, Request, Response, Status};
 
 use std::borrow::Borrow;
@@ -32,6 +32,8 @@ impl Replicator for ReplicationNode {
         self.replicate(id.clone(), key.clone(), value.clone())
             .await?;
 
+        self.ack(id.clone()).await?;
+
         match result {
             Ok(_) => {
                 let reply = replication::UpdateReply { id };
@@ -39,6 +41,17 @@ impl Replicator for ReplicationNode {
             }
             Err(e) => Result::Err(Status::internal(e.to_string())),
         }
+    }
+
+    async fn ack(&self, request: Request<UpdateAck>) -> Result<Response<UpdateReply>, Status> {
+        let message = request.into_inner();
+        let id = message.id;
+        if (id.is_empty()) {
+            return Result::Err(Status::invalid_argument("empty value provided for id"));
+        }
+        self.ack(id.clone()).await?;
+
+        Ok(Reponse::new(replication::UpdateReply { id }))
     }
 }
 #[tonic::async_trait]
@@ -71,11 +84,7 @@ impl Querier for QueryNode {
 }
 
 fn reply_success(id: String, key: String, value: String) -> Result<Response<QueryReply>, Status> {
-    let reply = replication::QueryReply {
-        id,
-        key,
-        value,
-    };
+    let reply = replication::QueryReply { id, key, value };
     Ok(Response::new(reply))
 }
 
@@ -89,10 +98,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let addr = node_config.bind_addr.parse().unwrap();
 
-    let node = DbNode::default(node_config);
+    let node = DbNode::default(node_config.clone());
 
     println!("ReplicatorServer listening on {}", addr);
-    let replication_node = ReplicationNode::default(node.clone()).await?;
+    let replication_node = ReplicationNode::default(node_config.clone(), node.clone());
     let query_node = QueryNode { node: node.clone() };
 
     Server::builder()
