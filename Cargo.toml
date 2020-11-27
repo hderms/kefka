@@ -17,6 +17,9 @@ uuid = { version = "0.8", features = ["serde", "v4"] }
 tonic = "0.3"
 prost = "0.6"
 tokio = { version = "0.2", features = ["macros"] }
+envy = "0.4"
+serde = {version = "1.0.117", features = ["derive"]}
+
 
 [build-dependencies]
 tonic-build = "0.3"
