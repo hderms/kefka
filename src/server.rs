@@ -44,7 +44,6 @@ impl Replicator for ReplicationNode {
 #[tonic::async_trait]
 impl Querier for QueryNode {
     async fn get(&self, request: Request<QueryRequest>) -> Result<Response<QueryReply>, Status> {
-        println!("Got a request from {:?}", request.remote_addr());
         let message = request.into_inner();
         let id = message.id;
         let key = message.key;
