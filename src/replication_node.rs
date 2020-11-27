@@ -1,50 +1,18 @@
-use serde::Deserialize;
-use sled::{IVec, Result as SledResult};
-
+use crate::Database;
 use replication::replicator_client::ReplicatorClient;
 use replication::{UpdateAck, UpdateRequest};
 use std::collections::HashSet;
 use tokio::sync::Mutex;
 use tonic::Status;
+
+use crate::NodeConfig;
+
 pub mod replication {
     tonic::include_proto!("replication");
 }
-#[derive(Clone)]
-pub struct DbNode {
-    pub db: sled::Db,
-}
-
-impl DbNode {
-    pub fn default(node_config: NodeConfig) -> DbNode {
-        let db_path = node_config.db_path;
-        let config = sled::Config::default()
-            .path(db_path)
-            .cache_capacity(10_000_000_000)
-            .flush_every_ms(Some(1000))
-            .mode(sled::Mode::HighThroughput);
-        let tree = config.open().expect("open");
-
-        DbNode { db: tree }
-    }
-    pub fn query(&self, key: &[u8]) -> SledResult<Option<IVec>> {
-        self.db.get(key)
-    }
-
-    pub fn insert(&self, key: &[u8], value: &[u8]) -> SledResult<Option<IVec>> {
-        self.db.insert(key, value)
-    }
-}
-#[derive(Deserialize, Clone, Debug)]
-pub struct NodeConfig {
-    pub next_addr: Option<String>,
-    pub prev_addr: Option<String>,
-    pub bind_addr: String,
-    pub db_path: String,
-}
-//next_client: Option<Mutex<ReplicatorClient<tonic::transport::Channel>>>,
 
 pub struct ReplicationNode {
-    pub node: DbNode,
+    pub node: Database,
     next_addr: Option<String>,
     prev_addr: Option<String>,
     next_client: Mutex<Option<ReplicatorClient<tonic::transport::Channel>>>,
@@ -54,7 +22,7 @@ pub struct ReplicationNode {
 }
 
 impl ReplicationNode {
-    pub fn default(node_config: NodeConfig, node: DbNode) -> ReplicationNode {
+    pub fn default(node_config: NodeConfig, node: Database) -> ReplicationNode {
         let sent = Mutex::new(HashSet::new());
         let pending = Mutex::new(HashSet::new());
 
@@ -147,8 +115,4 @@ impl ReplicationNode {
             }
         }
     }
-}
-
-pub struct QueryNode {
-    pub node: DbNode,
 }

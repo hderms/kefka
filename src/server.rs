@@ -3,12 +3,18 @@ use replication::querier_server::{Querier, QuerierServer};
 use replication::replicator_server::{Replicator, ReplicatorServer};
 use replication::{QueryReply, QueryRequest};
 use replication::{UpdateAck, UpdateReply, UpdateRequest};
+use std::borrow::Borrow;
 use tonic::{transport::Server, Request, Response, Status};
 
-use std::borrow::Borrow;
-mod node;
-pub use node::NodeConfig;
-pub use node::{DbNode, QueryNode, ReplicationNode};
+mod database;
+mod node_config;
+mod query_node;
+mod replication_node;
+
+pub use database::Database;
+pub use node_config::NodeConfig;
+use query_node::QueryNode;
+use replication_node::ReplicationNode;
 
 pub mod replication {
     tonic::include_proto!("replication");
@@ -51,7 +57,7 @@ impl Replicator for ReplicationNode {
         }
         self.ack(id.clone()).await?;
 
-        Ok(Reponse::new(replication::UpdateReply { id }))
+        Ok(Response::new(replication::UpdateReply { id }))
     }
 }
 #[tonic::async_trait]
@@ -98,7 +104,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let addr = node_config.bind_addr.parse().unwrap();
 
-    let node = DbNode::default(node_config.clone());
+    let node = Database::default(node_config.clone());
 
     println!("ReplicatorServer listening on {}", addr);
     let replication_node = ReplicationNode::default(node_config.clone(), node.clone());
