@@ -1,6 +1,4 @@
 extern crate pretty_env_logger;
-#[macro_use]
-extern crate log;
 use replication::querier_server::{Querier, QuerierServer};
 use replication::replicator_server::{Replicator, ReplicatorServer};
 use replication::{QueryReply, QueryRequest};
@@ -21,7 +19,6 @@ impl Replicator for ReplicationNode {
         &self,
         request: Request<UpdateRequest>,
     ) -> Result<Response<UpdateReply>, Status> {
-        println!("Got a request from {:?}", request.remote_addr());
         let message = request.into_inner();
         let id = message.id;
         let key = message.key;
@@ -32,6 +29,8 @@ impl Replicator for ReplicationNode {
             ));
         }
         let result = self.node.insert(key.as_bytes(), value.as_bytes());
+        self.replicate(id.clone(), key.clone(), value.clone())
+            .await?;
 
         match result {
             Ok(_) => {
