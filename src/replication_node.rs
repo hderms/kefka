@@ -45,34 +45,18 @@ impl ReplicationNode {
         });
 
         {
-            let mut client = self.next_client.lock().await;
-
-            match *client {
-                Some(ref mut c) => {
+            let client = self.initialize_next_client().await;
+            match client {
+                Ok(Some(mut c)) => {
                     c.update(request).await?;
                     println!("replicating key {}...", key.clone());
                     self.add_pending(id.clone()).await;
                     self.add_sent(id.clone()).await;
                     Ok(())
                 }
-                None => match self.next_addr.clone() {
-                    Some(addr) => {
-                        let next_client = ReplicatorClient::connect(addr).await;
-                        match next_client {
-                            Ok(c) => {
-                                println!("replicating key {}...", key.clone());
-                                c.clone().update(request).await?;
+                Ok(None) => Ok(()),
 
-                                self.add_pending(id.clone()).await;
-                                self.add_sent(id.clone()).await;
-                                *client = Some(c.clone());
-                                Ok(())
-                            }
-                            Err(e) => Err(Status::internal(e.to_string())),
-                        }
-                    }
-                    None => Ok(()),
-                },
+                Err(e) => Err(Status::internal(e.to_string())),
             }
         }
     }
@@ -81,28 +65,17 @@ impl ReplicationNode {
         let request = tonic::Request::new(UpdateAck { id: id.clone() });
 
         {
-            let mut client = self.prev_client.lock().await;
-
             self.remove_pending(id.clone()).await;
-            match *client {
-                Some(ref mut c) => {
+            let client = self.initialize_prev_client().await;
+
+            match client {
+                Ok(Some(mut c)) => {
                     c.ack(request).await?;
                     Ok(())
                 }
-                None => match self.prev_addr.clone() {
-                    Some(addr) => {
-                        let prev_client = ReplicatorClient::connect(addr).await;
-                        match prev_client {
-                            Ok(c) => {
-                                *client = Some(c.clone());
-                                c.clone().ack(request).await?;
-                                Ok(())
-                            }
-                            Err(e) => Err(Status::internal(e.to_string())),
-                        }
-                    }
-                    None => Ok(()),
-                },
+                Ok(None) => Ok(()),
+
+                Err(e) => Err(Status::internal(e.to_string())),
             }
         }
     }
@@ -125,5 +98,51 @@ impl ReplicationNode {
         println!("adding pending");
         pending.insert(id);
         println!("pending {:?}", pending);
+    }
+
+    async fn initialize_prev_client(
+        &self,
+    ) -> Result<Option<ReplicatorClient<tonic::transport::Channel>>, tonic::transport::Error> {
+        let mut client = self.prev_client.lock().await;
+
+        match &*client {
+            Some(c) => Ok(Some(c.clone())),
+            None => match self.prev_addr.clone() {
+                Some(addr) => {
+                    let prev_client = ReplicatorClient::connect(addr).await;
+                    match prev_client {
+                        Ok(c) => {
+                            *client = Some(c.clone());
+                            Ok(Some(c.clone()))
+                        }
+                        Err(e) => Err(e),
+                    }
+                }
+                None => Ok(None),
+            },
+        }
+    }
+
+    async fn initialize_next_client(
+        &self,
+    ) -> Result<Option<ReplicatorClient<tonic::transport::Channel>>, tonic::transport::Error> {
+        let mut client = self.next_client.lock().await;
+
+        match &*client {
+            Some(c) => Ok(Some(c.clone())),
+            None => match self.next_addr.clone() {
+                Some(addr) => {
+                    let next_client = ReplicatorClient::connect(addr).await;
+                    match next_client {
+                        Ok(c) => {
+                            *client = Some(c.clone());
+                            Ok(Some(c.clone()))
+                        }
+                        Err(e) => Err(e),
+                    }
+                }
+                None => Ok(None),
+            },
+        }
     }
 }
