@@ -6,7 +6,7 @@ pub struct Node {
 }
 impl Node {
     pub fn default() -> Node {
-        let tree = sled::open("/tmp/welcome-to-sled").expect("open");
+        let tree = sled::open("/tmp/kefka.db").expect("open");
 
         return Node { db: tree };
     }
