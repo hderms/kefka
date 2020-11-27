@@ -34,7 +34,7 @@ impl Replicator for ReplicationNode {
 
         match result {
             Ok(_) => {
-                let reply = replication::UpdateReply { id: id };
+                let reply = replication::UpdateReply { id };
                 Ok(Response::new(reply))
             }
             Err(e) => Result::Err(Status::internal(e.to_string())),
@@ -52,7 +52,7 @@ impl Querier for QueryNode {
         }
         let result = self.node.query(key.as_bytes());
 
-        return match result {
+        match result {
             Ok(Some(value)) => {
                 let value_bytes: &[u8] = value.borrow();
                 let value_string = String::from_utf8(value_bytes.to_vec());
@@ -66,17 +66,17 @@ impl Querier for QueryNode {
 
             Ok(None) => Result::Err(Status::not_found("key not found")),
             Err(e) => Result::Err(Status::internal(e.to_string())),
-        };
+        }
     }
 }
 
 fn reply_success(id: String, key: String, value: String) -> Result<Response<QueryReply>, Status> {
     let reply = replication::QueryReply {
-        id: id,
-        key: key,
-        value: value,
+        id,
+        key,
+        value,
     };
-    return Ok(Response::new(reply));
+    Ok(Response::new(reply))
 }
 
 #[tokio::main]

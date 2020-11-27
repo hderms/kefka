@@ -23,17 +23,17 @@ impl DbNode {
             .mode(sled::Mode::HighThroughput);
         let tree = config.open().expect("open");
 
-        return DbNode {
+        DbNode {
             db: tree,
             next: node_config.next_addr,
-        };
+        }
     }
     pub fn query(&self, key: &[u8]) -> SledResult<Option<IVec>> {
-        return self.db.get(key);
+        self.db.get(key)
     }
 
     pub fn insert(&self, key: &[u8], value: &[u8]) -> SledResult<Option<IVec>> {
-        return self.db.insert(key, value);
+        self.db.insert(key, value)
     }
 }
 #[derive(Deserialize, Clone, Debug)]
@@ -55,34 +55,34 @@ impl ReplicationNode {
                 let client: ReplicatorClient<tonic::transport::Channel> =
                     ReplicatorClient::connect(addr).await?;
 
-                return Ok(ReplicationNode {
+                Ok(ReplicationNode {
                     client: Some(client),
                     node: node.clone(),
-                });
+                })
             }
             None => {
-                return Ok(ReplicationNode {
+                Ok(ReplicationNode {
                     client: None,
-                    node: node,
-                });
+                    node,
+                })
             }
         }
     }
 
     pub async fn replicate(&self, id: String, key: String, value: String) -> Result<(), Status> {
         let request = tonic::Request::new(UpdateRequest {
-            id: id,
-            key: key,
-            value: value,
+            id,
+            key,
+            value,
         });
 
         match &self.client {
             Some(c) => {
                 let mut cloned = c.clone();
                 cloned.update(request).await?;
-                return Ok(());
+                 Ok(())
             }
-            None => return Ok(()),
+            None =>  Ok(()),
         }
     }
 }
