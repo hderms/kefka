@@ -8,17 +8,22 @@ pub mod replication {
     tonic::include_proto!("replication");
 }
 #[derive(Clone)]
-pub struct Node {
+pub struct DbNode {
     pub db: sled::Db,
     pub next: Option<String>,
 }
 
-impl Node {
-    pub fn default(node_config: NodeConfig) -> Node {
+impl DbNode {
+    pub fn default(node_config: NodeConfig) -> DbNode {
         let db_path = node_config.db_path;
-        let tree = sled::open(db_path).expect("open");
+        let config = sled::Config::default()
+            .path(db_path)
+            .cache_capacity(10_000_000_000)
+            .flush_every_ms(Some(1000))
+            .mode(sled::Mode::HighThroughput);
+        let tree = config.open().expect("open");
 
-        return Node {
+        return DbNode {
             db: tree,
             next: node_config.next_addr,
         };
@@ -39,11 +44,11 @@ pub struct NodeConfig {
 }
 
 pub struct ReplicationNode {
-    pub node: Node,
+    pub node: DbNode,
     client: Option<ReplicatorClient<tonic::transport::Channel>>,
 }
 impl ReplicationNode {
-    pub async fn default(node: Node) -> Result<ReplicationNode, tonic::transport::Error> {
+    pub async fn default(node: DbNode) -> Result<ReplicationNode, tonic::transport::Error> {
         let next = node.next.clone();
         match next {
             Some(addr) => {
@@ -83,5 +88,5 @@ impl ReplicationNode {
 }
 
 pub struct QueryNode {
-    pub node: Node,
+    pub node: DbNode,
 }

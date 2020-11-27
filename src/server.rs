@@ -8,7 +8,7 @@ use tonic::{transport::Server, Request, Response, Status};
 use std::borrow::Borrow;
 mod node;
 pub use node::NodeConfig;
-pub use node::{Node, QueryNode, ReplicationNode};
+pub use node::{DbNode, QueryNode, ReplicationNode};
 
 pub mod replication {
     tonic::include_proto!("replication");
@@ -90,9 +90,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let addr = node_config.bind_addr.parse().unwrap();
 
-    let node = Node::default(node_config);
+    let node = DbNode::default(node_config);
 
-    println!("GreeterServer listening on {}", addr);
+    println!("ReplicatorServer listening on {}", addr);
     let replication_node = ReplicationNode::default(node.clone()).await?;
     let query_node = QueryNode { node: node.clone() };
 
