@@ -7,6 +7,7 @@ use tonic::{transport::Server, Request, Response, Status};
 use std::borrow::Borrow;
 mod node;
 pub use node::Node;
+pub use node::NodeConfig;
 
 pub mod replication {
     tonic::include_proto!("replication");
@@ -79,8 +80,13 @@ fn reply_success(id: String, key: String, value: String) -> Result<Response<Quer
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let node_config = match envy::from_env::<NodeConfig>() {
+        Ok(config) => config,
+        Err(error) => panic!("{:#?}", error),
+    };
     let addr = "127.0.0.1:50051".parse().unwrap();
-    let node = Node::default();
+
+    let node = Node::default(node_config);
 
     println!("GreeterServer listening on {}", addr);
 
