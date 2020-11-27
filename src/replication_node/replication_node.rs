@@ -1,11 +1,11 @@
-use crate::Database;
 use replication::replicator_client::ReplicatorClient;
 use replication::{UpdateAck, UpdateRequest};
-use std::collections::HashSet;
 use tokio::sync::Mutex;
 use tonic::Status;
 
 use crate::NodeConfig;
+use crate::Database;
+use super::messages::Messages;
 
 pub mod replication {
     tonic::include_proto!("replication");
@@ -17,14 +17,13 @@ pub struct ReplicationNode {
     prev_addr: Option<String>,
     next_client: Mutex<Option<ReplicatorClient<tonic::transport::Channel>>>,
     prev_client: Mutex<Option<ReplicatorClient<tonic::transport::Channel>>>,
-    sent: Mutex<HashSet<String>>,
-    pending: Mutex<HashSet<String>>,
+    message_base: Messages
 }
+
 
 impl ReplicationNode {
     pub fn default(node_config: NodeConfig, node: Database) -> ReplicationNode {
-        let sent = Mutex::new(HashSet::new());
-        let pending = Mutex::new(HashSet::new());
+        let message_base = Messages::default();
 
         ReplicationNode {
             next_client: Mutex::new(None),
@@ -32,8 +31,7 @@ impl ReplicationNode {
             next_addr: node_config.next_addr,
             prev_addr: node_config.prev_addr,
             node,
-            sent,
-            pending,
+            message_base
         }
     }
 
@@ -50,8 +48,8 @@ impl ReplicationNode {
                 Ok(Some(mut c)) => {
                     c.update(request).await?;
                     println!("replicating key {}...", key.clone());
-                    self.add_pending(id.clone()).await;
-                    self.add_sent(id.clone()).await;
+                    self.message_base.add_pending(id.clone()).await;
+                    self.message_base.add_sent(id.clone()).await;
                     Ok(())
                 }
                 Ok(None) => Ok(()),
@@ -65,7 +63,7 @@ impl ReplicationNode {
         let request = tonic::Request::new(UpdateAck { id: id.clone() });
 
         {
-            self.remove_pending(id.clone()).await;
+            self.message_base.remove_pending(id.clone()).await;
             let client = self.initialize_prev_client().await;
 
             match client {
@@ -80,25 +78,6 @@ impl ReplicationNode {
         }
     }
 
-    async fn remove_pending(&self, id: String) {
-        let mut pending = self.pending.lock().await;
-        println!("removing pending");
-        pending.remove(id.as_str());
-        println!("pending {:?}", pending);
-    }
-
-    async fn add_sent(&self, id: String) {
-        let mut sent = self.sent.lock().await;
-        sent.insert(id.clone());
-        println!("adding sent");
-        println!("sent {:?}", sent);
-    }
-    async fn add_pending(&self, id: String) {
-        let mut pending = self.pending.lock().await;
-        println!("adding pending");
-        pending.insert(id);
-        println!("pending {:?}", pending);
-    }
 
     async fn initialize_prev_client(
         &self,

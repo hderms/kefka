@@ -11,8 +11,8 @@ mod node_config;
 mod query_node;
 mod replication_node;
 
-pub use database::Database;
-pub use node_config::NodeConfig;
+ use database::Database;
+ use node_config::NodeConfig;
 use query_node::QueryNode;
 use replication_node::ReplicationNode;
 
