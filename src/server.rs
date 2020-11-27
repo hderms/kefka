@@ -25,6 +25,7 @@ impl Replicator for ReplicationNode {
         &self,
         request: Request<UpdateRequest>,
     ) -> Result<Response<UpdateReply>, Status> {
+        println!("Got a request: {:?}", request);
         let message = request.into_inner();
         let id = message.id;
         let key = message.key;
@@ -50,6 +51,8 @@ impl Replicator for ReplicationNode {
     }
 
     async fn ack(&self, request: Request<UpdateAck>) -> Result<Response<UpdateReply>, Status> {
+        println!("Got a request: {:?}", request);
+
         let message = request.into_inner();
         let id = message.id;
         if (id.is_empty()) {

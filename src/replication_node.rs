@@ -43,24 +43,16 @@ impl ReplicationNode {
             key: key.clone(),
             value,
         });
-        println!("replicating key {}...", key.clone());
-        {
-            let mut sent = self.sent.lock().await;
-            sent.insert(id.clone());
-            println!("sent {:?}", sent);
-        }
 
-        {
-            let mut pending = self.pending.lock().await;
-            pending.insert(id.clone());
-            println!("pending {:?}", pending);
-        }
         {
             let mut client = self.next_client.lock().await;
 
             match *client {
                 Some(ref mut c) => {
                     c.update(request).await?;
+                    println!("replicating key {}...", key.clone());
+                    self.add_pending(id.clone()).await;
+                    self.add_sent(id.clone()).await;
                     Ok(())
                 }
                 None => match self.next_addr.clone() {
@@ -68,7 +60,11 @@ impl ReplicationNode {
                         let next_client = ReplicatorClient::connect(addr).await;
                         match next_client {
                             Ok(c) => {
+                                println!("replicating key {}...", key.clone());
                                 c.clone().update(request).await?;
+
+                                self.add_pending(id.clone()).await;
+                                self.add_sent(id.clone()).await;
                                 *client = Some(c.clone());
                                 Ok(())
                             }
@@ -85,14 +81,9 @@ impl ReplicationNode {
         let request = tonic::Request::new(UpdateAck { id: id.clone() });
 
         {
-            let mut pending = self.pending.lock().await;
-            pending.remove(id.clone().as_str());
-            println!("pending {:?}", pending);
-        }
-
-        {
             let mut client = self.prev_client.lock().await;
 
+            self.remove_pending(id.clone()).await;
             match *client {
                 Some(ref mut c) => {
                     c.ack(request).await?;
@@ -114,5 +105,25 @@ impl ReplicationNode {
                 },
             }
         }
+    }
+
+    async fn remove_pending(&self, id: String) {
+        let mut pending = self.pending.lock().await;
+        println!("removing pending");
+        pending.remove(id.as_str());
+        println!("pending {:?}", pending);
+    }
+
+    async fn add_sent(&self, id: String) {
+        let mut sent = self.sent.lock().await;
+        sent.insert(id.clone());
+        println!("adding sent");
+        println!("sent {:?}", sent);
+    }
+    async fn add_pending(&self, id: String) {
+        let mut pending = self.pending.lock().await;
+        println!("adding pending");
+        pending.insert(id);
+        println!("pending {:?}", pending);
     }
 }
