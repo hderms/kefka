@@ -1,5 +1,6 @@
 extern crate pretty_env_logger;
-#[macro_use] extern crate log;
+#[macro_use]
+extern crate log;
 use replication::querier_server::{Querier, QuerierServer};
 use replication::replicator_server::{Replicator, ReplicatorServer};
 use replication::{QueryReply, QueryRequest};
@@ -8,45 +9,44 @@ use tonic::{transport::Server, Request, Response, Status};
 
 use std::borrow::Borrow;
 mod node;
-pub use node::{Node, ReplicationNode, QueryNode};
 pub use node::NodeConfig;
-
+pub use node::{Node, QueryNode, ReplicationNode};
 
 pub mod replication {
-tonic::include_proto!("replication");
+    tonic::include_proto!("replication");
 }
 #[tonic::async_trait]
 impl Replicator for ReplicationNode {
-async fn update(
-    &self,
-    request: Request<UpdateRequest>,
-) -> Result<Response<UpdateReply>, Status> {
-    println!("Got a request from {:?}", request.remote_addr());
-    let message = request.into_inner();
-    let id = message.id;
-    let key = message.key;
-    let value = message.value;
-    if (key.is_empty() || value.is_empty()) {
-        return Result::Err(Status::invalid_argument(
-            "empty value provided for key or value",
-        ));
-    }
-    let result = self.node.insert(key.as_bytes(), value.as_bytes());
-
-    match result {
-        Ok(_) => {
-            let reply = replication::UpdateReply { id: id };
-            Ok(Response::new(reply))
+    async fn update(
+        &self,
+        request: Request<UpdateRequest>,
+    ) -> Result<Response<UpdateReply>, Status> {
+        println!("Got a request from {:?}", request.remote_addr());
+        let message = request.into_inner();
+        let id = message.id;
+        let key = message.key;
+        let value = message.value;
+        if (key.is_empty() || value.is_empty()) {
+            return Result::Err(Status::invalid_argument(
+                "empty value provided for key or value",
+            ));
         }
-        Err(e) => Result::Err(Status::internal(e.to_string())),
+        let result = self.node.insert(key.as_bytes(), value.as_bytes());
+
+        match result {
+            Ok(_) => {
+                let reply = replication::UpdateReply { id: id };
+                Ok(Response::new(reply))
+            }
+            Err(e) => Result::Err(Status::internal(e.to_string())),
+        }
     }
-}
 }
 #[tonic::async_trait]
 impl Querier for QueryNode {
-async fn get(&self, request: Request<QueryRequest>) -> Result<Response<QueryReply>, Status> {
-    println!("Got a request from {:?}", request.remote_addr());
-    let message = request.into_inner();
+    async fn get(&self, request: Request<QueryRequest>) -> Result<Response<QueryReply>, Status> {
+        println!("Got a request from {:?}", request.remote_addr());
+        let message = request.into_inner();
         let id = message.id;
         let key = message.key;
         if (key.is_empty()) {
@@ -89,13 +89,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(config) => config,
         Err(error) => panic!("{:#?}", error),
     };
-    let addr = "127.0.0.1:50051".parse().unwrap();
+    let addr = node_config.bind_addr.parse().unwrap();
 
     let node = Node::default(node_config);
 
     println!("GreeterServer listening on {}", addr);
-    let replication_node = ReplicationNode::default( node.clone());
-    let query_node = QueryNode{node: node.clone()};
+    let replication_node = ReplicationNode::default(node.clone()).await?;
+    let query_node = QueryNode { node: node.clone() };
 
     Server::builder()
         .add_service(ReplicatorServer::new(replication_node))
