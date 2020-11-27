@@ -109,6 +109,7 @@ impl ReplicationNode {
             Some(c) => Ok(Some(c.clone())),
             None => match self.prev_addr.clone() {
                 Some(addr) => {
+                    println!("initializing previous client");
                     let prev_client = ReplicatorClient::connect(addr).await;
                     match prev_client {
                         Ok(c) => {
@@ -132,6 +133,8 @@ impl ReplicationNode {
             Some(c) => Ok(Some(c.clone())),
             None => match self.next_addr.clone() {
                 Some(addr) => {
+
+                    println!("initializing next client");
                     let next_client = ReplicatorClient::connect(addr).await;
                     match next_client {
                         Ok(c) => {
